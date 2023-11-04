@@ -33,6 +33,7 @@ public:
     void LBWolff();
     void CountingSuscept(int number, std::vector<double>& Xset);
     void OutStream(std::ofstream& fout,std::string filename, std::vector<double> & sset);
+    void BalanceTest(int number);
     
 };
 
@@ -293,5 +294,32 @@ void HeisenbergCanvas::CountingSuscept(int number, std::vector<double>& Xset)
     Xset.push_back(susceptibility);
     // test
     std::cout << susceptibility << std::endl;
+}
+
+void HeisenbergCanvas::BalanceTest(int number)
+{
+    long double m_sum = 0;
+    long double m2_sum = 0;
+    double mx;
+    for (size_t i = 0; i < number/10; i++)
+    {
+        for (int j=0;j<9;j++)
+        {
+            MetropolisWalk();
+            mx = canvas[0][0][0];
+            m_sum += mx;
+            m2_sum += mx * mx;
+            
+        }
+        LBWolff();
+        mx = canvas[0][0][0];
+        m_sum += mx;
+        m2_sum += mx * mx;
+    }
+    m_sum /= number;
+    m2_sum /= number;
+    // test
+    std::cout << "mx average = " << m_sum << std::endl;
+    std::cout << "mx2 average = " << m2_sum << std::endl;
 }
 
