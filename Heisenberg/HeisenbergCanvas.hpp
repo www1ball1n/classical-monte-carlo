@@ -3,6 +3,7 @@
 #include <vector>
 #include <cmath>
 #include <iostream>
+#include <algorithm>
 #include "RandomNumber.hpp"
 #include "Utils.hpp"
 
@@ -31,9 +32,12 @@ public:
     Spin SurroundingOf(int x, int y);
     void MetropolisWalk();
     void LBWolff();
+    void LBWalk();
     void CountingSuscept(int number, std::vector<double>& Xset);
     void OutStream(std::ofstream& fout,std::string filename, std::vector<double> & sset);
     void BalanceTest(int number);
+    void CountingM(int number, std::vector<double>& Xset);
+    void MixWalk();
     
 };
 
@@ -51,11 +55,12 @@ void HeisenbergCanvas::Initialize()
 double HeisenbergCanvas::CalculateM()
 {
     Spin sum = {0,0,0};
+    int count[2] = {1,-1};
     for (int i=0;i<L;i++)
     {
         for (int j=0;j<L;j++)
         {
-            sum += canvas[i][j] * (2*((i+j)%2)-1);
+            sum += canvas[i][j] * count[(i+j)%2];
         }
     }
     return (norm(sum) / (L * L));
@@ -110,163 +115,148 @@ void HeisenbergCanvas::LBWolff()
     isConsidered[x][y] = true;
     stack.push_back(currentSpin);
     
-    // 参考qy的写法
     do
     {
+        // 获取x,y坐标
         currentSpin = stack.back();
         x = currentSpin[0];
         y = currentSpin[1];
-        canvas[x][y] = canvas[x][y] - mirror * Dot(mirror,canvas[x][y]); // Flip
         stack.pop_back();
-        int cumulative[L/2+1]; 
+
+        canvas[x][y] = canvas[x][y] - 2 * mirror * Dot(mirror,canvas[x][y]); // Flip
+        canvas[x][y] = canvas[x][y] * (1.0/norm(canvas[x][y]));
+        isingCanvas[x][y] *= -1;
+        
+        double cumulative[L/2-1+1];
         double sumTemp;
-        int chainLength;
-        int conditionalCumulative[L/2+1];
 
-
-        // 换一下cumulative储存方式 11/4 16:00
         // Right
         sumTemp = 0;
         cumulative[0] = 0;
-        for (int i=1;i<=L/2;++i)
+        for (int i=1;i<=L/2-1;i++)
         {
             // 按道理可以用指针运算化简，先放在这里
-            sumTemp += isingCanvas[x][y] * isingCanvas[(L+x+i)%L][y] / (i * i);
-            cumulative[i] = 1 - std::exp(2 * sumTemp); 
+            sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[(L+x+i)%L][y] / (i * i * T)); 
+            cumulative[i] = 1 - std::exp(sumTemp); 
         }
 
-        chainLength = L/2;
+        int k = 0;
         // 每次的conditionalCumulative都是chainLength+1的大小
-        
         while (true)
         {
             double dice = rd.UniformRandom();
-            if (dice > cumulative[chainLength]) break; // 构造结束
+            dice = cumulative[k]+(1-cumulative[k]) * dice;
+            if (dice >= cumulative[L/2-1]) break; // 构造结束
 
-            int k = std::lower_bound(cumulative,cumulative+chainLength,dice)-cumulative; ++k;// 查找
-            for (int i=1;i<=k;i++) isConsidered[(L+x+i)%L][y] = 1;
-            if (!isConsidered[(L+x+k)%L][y] && isingCanvas[x][y]*isingCanvas[(L+x+k)%L][y] < 0)
+            k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
+            for (int i=1;i<k;i++) isConsidered[(L+x+i)%L][y] = 1;
+            int chosenX = (L+x+k)%L, chosenY = y;
+            if (!isConsidered[chosenX][chosenY])
             {
-                std::array<int,2> coordinate = {(L+x+k)%L,y};
+                std::array<int,2> coordinate = {chosenX,chosenY};
                 stack.push_back(coordinate);
             }
-            chainLength -= k; // new chainLength
-            
-            for (int i=1;i<=chainLength;++i) // calculate new cumulative
-                conditionalCumulative[i-1] = (cumulative[k]-cumulative[k+i])/(1-cumulative[k]);
-
-            for (int i=0;i<chainLength;i++) // substitution
-                cumulative[i]=conditionalCumulative[i];
+            isConsidered[chosenX][chosenY] = true;
         }
-
 
         // Left
         sumTemp = 0;
         cumulative[0] = 0;
-        for (int i=1;i<=L/2;++i)
+        for (int i=1;i<=L/2-1;i++)
         {
             // 按道理可以用指针运算化简，先放在这里
-            sumTemp += isingCanvas[x][y] * isingCanvas[(L+x-i)%L][y] / (i * i);
-            cumulative[i] = 1 - std::exp(2 * sumTemp); 
+            sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[(L+x-i)%L][y] / (i * i * T)); 
+            cumulative[i] = 1 - std::exp(sumTemp); 
         }
 
-        chainLength = L/2;
+        k = 0;
         // 每次的conditionalCumulative都是chainLength+1的大小
-        
         while (true)
         {
             double dice = rd.UniformRandom();
-            if (dice > cumulative[chainLength]) break; // 构造结束
+            dice = cumulative[k]+(1-cumulative[k]) * dice;
+            if (dice >= cumulative[L/2-1]) break; // 构造结束
 
-            int k = std::lower_bound(cumulative,cumulative+chainLength,dice)-cumulative; ++k;// 查找
-            for (int i=1;i<=k;i++) isConsidered[(L+x-i)%L][y] = 1;
-            if (!isConsidered[(L+x-k)%L][y] && isingCanvas[x][y]*isingCanvas[(L+x-k)%L][y] < 0)
+            k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
+            for (int i=1;i<k;i++) isConsidered[(L+x-i)%L][y] = 1;
+            int chosenX = (L+x-k)%L, chosenY = y;
+            if (!isConsidered[chosenX][chosenY])
             {
-                std::array<int,2> coordinate = {(L+x-k)%L,y};
+                std::array<int,2> coordinate = {chosenX,chosenY};
                 stack.push_back(coordinate);
             }
-            chainLength -= k; // new chainLength
-            
-            for (int i=1;i<=chainLength;++i) // calculate new cumulative
-                conditionalCumulative[i-1] = (cumulative[k]-cumulative[k+i])/(1-cumulative[k]);
-
-            for (int i=0;i<chainLength;i++) // substitution
-                cumulative[i]=conditionalCumulative[i];
+            isConsidered[chosenX][chosenY] = true;
         }
-
 
         // Up
         sumTemp = 0;
         cumulative[0] = 0;
-        for (int i=1;i<=L/2;++i)
+        for (int i=1;i<=L/2-1;i++)
         {
             // 按道理可以用指针运算化简，先放在这里
-            sumTemp += isingCanvas[x][y] * isingCanvas[x][(y+L+i)%L] / (i * i);
-            cumulative[i] = 1 - std::exp(2 * sumTemp); 
+            sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[x][(L+y+i)%L] / (i * i * T)); 
+            cumulative[i] = 1 - std::exp(sumTemp); 
         }
 
-        chainLength = L/2;
-        // 每次的conditionalCumulative都是chainLength+1的大小
-        
+        k = 0;
         while (true)
         {
             double dice = rd.UniformRandom();
-            if (dice > cumulative[chainLength]) break; // 构造结束
+            dice = cumulative[k]+(1-cumulative[k]) * dice;
+            if (dice >= cumulative[L/2-1]) break; // 构造结束
 
-            int k = std::lower_bound(cumulative,cumulative+chainLength,dice)-cumulative; ++k;// 查找
-            for (int i=1;i<=k;i++) isConsidered[x][(y+L+i)%L] = 1;
-            if (!isConsidered[x][(y+L+k)%L] && isingCanvas[x][y]*isingCanvas[x][(y+L+k)%L] < 0)
+            k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
+            for (int i=1;i<k;i++) isConsidered[x][(L+y+i)%L] = 1;
+            int chosenX = x, chosenY = (L+y+k)%L;
+            if (!isConsidered[chosenX][chosenY])
             {
-                std::array<int,2> coordinate = {x,(y+L+k)%L};
+                std::array<int,2> coordinate = {chosenX,chosenY};
                 stack.push_back(coordinate);
             }
-            chainLength -= k; // new chainLength
-            
-            for (int i=1;i<=chainLength;++i) // calculate new cumulative
-                conditionalCumulative[i-1] = (cumulative[k]-cumulative[k+i])/(1-cumulative[k]);
-
-            for (int i=0;i<chainLength;i++) // substitution
-                cumulative[i]=conditionalCumulative[i];
+            isConsidered[chosenX][chosenY] = true;
         }
-
 
         // Down
         sumTemp = 0;
         cumulative[0] = 0;
-        for (int i=1;i<=L/2;++i)
+        for (int i=1;i<=L/2-1;i++)
         {
             // 按道理可以用指针运算化简，先放在这里
-            sumTemp += isingCanvas[x][y] * isingCanvas[x][(y+L-i)%L] / (i * i);
-            cumulative[i] = 1 - std::exp(2 * sumTemp); 
+            sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[x][(L+y-i)%L] / (i * i * T)); 
+            cumulative[i] = 1 - std::exp(sumTemp); 
         }
 
-        chainLength = L/2;
-        // 每次的conditionalCumulative都是chainLength+1的大小
-        
+        k = 0;
         while (true)
         {
             double dice = rd.UniformRandom();
-            if (dice > cumulative[chainLength]) break; // 构造结束
+            dice = cumulative[k]+(1-cumulative[k]) * dice;
+            if (dice >= cumulative[L/2-1]) break; // 构造结束
 
-            int k = std::lower_bound(cumulative,cumulative+chainLength,dice)-cumulative; ++k;// 查找
-            for (int i=1;i<=k;i++) isConsidered[x][(y+L-i)%L] = 1;
-            if (!isConsidered[x][(y+L-k)%L] && isingCanvas[x][y]*isingCanvas[x][(y+L-k)%L] < 0)
+            k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
+            for (int i=1;i<k;i++) isConsidered[x][(L+y-i)%L] = 1;
+            int chosenX = x, chosenY = (L+y-k)%L;
+            if (!isConsidered[chosenX][chosenY])
             {
-                std::array<int,2> coordinate = {x,(y+L-k)%L};
+                std::array<int,2> coordinate = {chosenX,chosenY};
                 stack.push_back(coordinate);
             }
-            chainLength -= k; // new chainLength
-            
-            for (int i=1;i<=chainLength;++i) // calculate new cumulative
-                conditionalCumulative[i-1] = (cumulative[k]-cumulative[k+i])/(1-cumulative[k]);
-
-            for (int i=0;i<chainLength;i++) // substitution
-                cumulative[i]=conditionalCumulative[i];
+            isConsidered[chosenX][chosenY] = true;
         }
 
     } while (!stack.empty());
 
+}
 
+void HeisenbergCanvas::LBWalk()
+{
+    for (int walk=0;walk<10;walk++) LBWolff();
+}
+
+void HeisenbergCanvas::MixWalk()
+{
+    LBWolff();
+    for (int i=0;i<5;i++) MetropolisWalk();
 }
 
 void HeisenbergCanvas::CountingSuscept(int number, std::vector<double>& Xset)
@@ -276,21 +266,37 @@ void HeisenbergCanvas::CountingSuscept(int number, std::vector<double>& Xset)
     double m = 0;
     for (size_t i = 0; i < number/10; i++)
     {
-        for (int j=0;j<9;j++)
+        for (int j=0;j<10;j++)
         {
-            MetropolisWalk();
+            MixWalk();
             m = CalculateM();
             m2_sum += m * m;
             m4_sum += pow(m,4);
         }
-        LBWolff();
-        m = CalculateM();
-        m2_sum += m * m;
-        m4_sum += pow(m,4);
     }
     m4_sum /= number;
     m2_sum /= number;
     double susceptibility = m4_sum / (m2_sum * m2_sum);
+    Xset.push_back(susceptibility);
+    // test
+    std::cout << susceptibility << std::endl;
+}
+
+void HeisenbergCanvas::CountingM(int number, std::vector<double>& Xset)
+{
+    long double m_sum = 0;
+    double m = 0;
+    for (size_t i = 0; i < number/10; i++)
+    {
+        for (int j=0;j<10;j++)
+        {
+            MixWalk();
+            m = CalculateM();
+            m_sum += m;
+        }
+    }
+    m_sum /= number;
+    double susceptibility = m_sum;
     Xset.push_back(susceptibility);
     // test
     std::cout << susceptibility << std::endl;

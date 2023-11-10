@@ -2,46 +2,56 @@
 #include "FileDealing.hpp"
 #include "HeisenbergCanvas.hpp"
 
+
 const int BIN_NUM = 30;
-const int SWEEPS_PER_BIN = 100;
-const int THERMALIZE_SWEEPS = 1000;
-std::string FILE_NAME = "BinderData.txt";
+const int SWEEPS_PER_BIN = 1000;
+const int THERMALIZE_SWEEPS = 5000;
+
 std::string HEADER = "BINDER RATIO";
-
-
 
 
 int main()
 {
-    int L = 10;
-    double T = 5;
-    std::cout << "The temperature is " << T << std::endl;
-    HeisenbergCanvas h(L,T);
-    h.Initialize();
+    int L;
+    std::string FILE_NAME;
+    double START_TEMP, END_TEMP, STEP;
+
+    std::cout << "----------------------------------------------------------" << "\n";
+    std::cout << "MONTE CARLO SIMULATION FOR SLAC FERMION HEISENBERG MODEL" << "\n";
+    std::cout << "----------------------------------------------------------" << std::endl;
+
+    std::cout << "Please enter the lattice size: ";
+    std::cin >> L;
+    std::cout << "Please enter your file name with suffix: ";
+    std::cin >> FILE_NAME;
+    std::cout << "Please enter the start temperature: ";
+    std::cin >> START_TEMP;
+    std::cout << "Please enter the end temperature (contained): ";
+    std::cin >> END_TEMP;
+    std::cout << "Please enter the temperature step: ";
+    std::cin >> STEP;
 
     std::ofstream fout;
     WriteHeader(fout, FILE_NAME, HEADER);
-    
-    // Thermalize, Metro : Wolff = 9 : 1
-    for (int walk=0; walk<THERMALIZE_SWEEPS; walk++)
+
+    for (double T=START_TEMP;T<=END_TEMP;T+=STEP)
     {
-        for (int i=0;i<9;++i) h.MetropolisWalk();
-        h.LBWolff();
+        std::cout << "The temperature is " << T << std::endl;
+        HeisenbergCanvas h(L,T);
+        h.Initialize();
+    
+        for (int walk=0; walk<THERMALIZE_SWEEPS; walk++)
+        {
+            for (int i=0;i<10; i++) h.MixWalk();
+        }
+
+        // Observe
+        std::vector<double> susceptibility_set;
+        for (int bin=0;bin<BIN_NUM;++bin)
+            h.CountingSuscept(SWEEPS_PER_BIN, susceptibility_set); // actually Binder Ratio
+        
+        h.OutStream(fout, FILE_NAME, susceptibility_set);
     }
     
-    std::cout << h.CalculateM() << std::endl;
-
-    // Observe
-    std::vector<double> susceptibility_set;
-    for (int bin=0;bin<BIN_NUM;++bin)
-    {
-        h.CountingSuscept(SWEEPS_PER_BIN, susceptibility_set);
-    }
-    
-    h.OutStream(fout, FILE_NAME, susceptibility_set);
-    
-    std::cout << "Simulation Success!" << std::endl;
-    system("pause");
-
 }
 
