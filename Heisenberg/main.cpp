@@ -1,11 +1,8 @@
-#include <iostream>
-#include "FileDealing.hpp"
-#include "HeisenbergCanvas.hpp"
-
+#include "Header.hpp"
 
 const int BIN_NUM = 30;
-const int SWEEPS_PER_BIN = 1000;
-const int THERMALIZE_SWEEPS = 5000;
+const int SWEEPS_PER_BIN = 2000;
+const int THERMALIZE_SWEEPS = 10000;
 
 std::string HEADER = "BINDER RATIO";
 
@@ -22,7 +19,7 @@ int main()
 
     std::cout << "Please enter the lattice size: ";
     std::cin >> L;
-    std::cout << "Please enter your file name with suffix: ";
+    std::cout << "Please enter your file name: ";
     std::cin >> FILE_NAME;
     std::cout << "Please enter the start temperature: ";
     std::cin >> START_TEMP;
@@ -42,13 +39,13 @@ int main()
     
         for (int walk=0; walk<THERMALIZE_SWEEPS; walk++)
         {
-            for (int i=0;i<10; i++) h.MixWalk();
+            h.MixWalk();
         }
 
         // Observe
         std::vector<double> susceptibility_set;
         for (int bin=0;bin<BIN_NUM;++bin)
-            h.CountingSuscept(SWEEPS_PER_BIN, susceptibility_set); // actually Binder Ratio
+            h.CountingBinder(SWEEPS_PER_BIN, susceptibility_set); // actually Binder Ratio
         
         h.OutStream(fout, FILE_NAME, susceptibility_set);
     }
