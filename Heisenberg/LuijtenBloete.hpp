@@ -100,32 +100,32 @@ void HeisenbergCanvas::LBWolff()
         // }
 
         // Up
-        // sumTemp = 0;
-        // cumulative[0] = 0;
-        // for (int i=1;i<=L/2-1;i++)
-        // {
-        //     // 按道理可以用指针运算化简，先放在这里
-        //     sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[x][(L+y+i)%L] * interaction[i]); 
-        //     cumulative[i] = 1 - std::exp(sumTemp); 
-        // }
+        sumTemp = 0;
+        cumulative[0] = 0;
+        for (int i=1;i<=L/2-1;i++)
+        {
+            // 按道理可以用指针运算化简，先放在这里
+            sumTemp += std::min(0.0, -2 * isingCanvas[x][y] * isingCanvas[x][(L+y+i)%L] * interaction[i]); 
+            cumulative[i] = 1 - std::exp(sumTemp); 
+        }
 
-        // k = 0;
-        // while (true)
-        // {
-        //     double dice = rd.UniformRandom();
-        //     dice = cumulative[k]+(1-cumulative[k]) * dice;
-        //     if (dice >= cumulative[L/2-1]) break; // 构造结束
+        k = 0;
+        while (true)
+        {
+            double dice = rd.UniformRandom();
+            dice = cumulative[k]+(1-cumulative[k]) * dice;
+            if (dice >= cumulative[L/2-1]) break; // 构造结束
 
-        //     k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
-        //     for (int i=1;i<k;i++) isConsidered[x][(L+y+i)%L] = 1;
-        //     int chosenX = x, chosenY = (L+y+k)%L;
-        //     if (!isConsidered[chosenX][chosenY])
-        //     {
-        //         std::array<int,2> coordinate = {chosenX,chosenY};
-        //         stack.push_back(coordinate);
-        //     }
-        //     isConsidered[chosenX][chosenY] = true;
-        // }
+            k = std::upper_bound(cumulative,cumulative+L/2-1+1,dice)-cumulative;// 查找首个
+            for (int i=1;i<k;i++) isConsidered[x][(L+y+i)%L] = 1;
+            int chosenX = x, chosenY = (L+y+k)%L;
+            if (!isConsidered[chosenX][chosenY])
+            {
+                std::array<int,2> coordinate = {chosenX,chosenY};
+                stack.push_back(coordinate);
+            }
+            isConsidered[chosenX][chosenY] = true;
+        }
 
         // // Down
         // sumTemp = 0;
